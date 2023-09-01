@@ -3,50 +3,110 @@
 
 using namespace std;
 
-BOOL ReadProcess(HANDLE hProcess, uintptr_t memoryAdress, int intPtrRead) {
-   BOOL rpmReturn = ReadProcessMemory(hProcess, (LPCVOID)memoryAdress, &intPtrRead, sizeof(int*), NULL);
-   if(rpmReturn == FALSE) {
-      cout << "ReadProcessMemory(INT) Failed. Get Last Error: " << dec << GetLastError() << endl;
-      system("pause");
-      return EXIT_FAILURE;
-   }
-   return rpmReturn;
-}
+// Class that access to other process
+class ProcessAccess {
+public :
+   int mode;
+   DWORD pid;
+   BOOL flag = true;
+   HANDLE hProcess;
+   uintptr_t adress;
 
-BOOL ReadProcess(HANDLE hProcess, uintptr_t memoryAdress, char charPtrRead[]) {
-   BOOL rpmReturn = ReadProcessMemory(hProcess, (LPCVOID)memoryAdress, charPtrRead, 128, NULL);
-   if(rpmReturn == FALSE) {
-      cout << "ReadProcessMemory(STRING) Failed. Get Last Error: " << dec << GetLastError() << endl;
-      system("pause");
-      return EXIT_FAILURE;
+   ProcessAccess(DWORD pid) : pid(pid) {
+      GetProcessHandle();
+
+      while(flag) {
+         cout << "SELECT MODE(Read = 0, Write = 1, EXIT = 2): ";
+         cin >> mode;
+
+         int IntRead;
+         int IntWrite;
+
+         switch(mode) {
+            case 0 :
+               IntRead = 0;
+               cout << "Memory Address of the Integer to Read (in Hexadecimal): 0x";
+               cin >> hex >> adress;
+
+               ReadMemory(adress, &IntRead);
+
+               break;
+            case 1 :
+               cout << "Memory Address of the Integer to Write (in Hexadecimal): 0x";
+               cin >> hex >> adress;
+
+               cout << "ENTER the Value to Overwrite: ";
+               cin >> dec >> IntWrite;
+
+               WriteMemory(adress, &IntWrite);
+
+               break;
+            case 2 :
+               flag = false;
+
+               break;
+            default :
+               flag = false;
+         }
+      }
+
+      CloseHandle(hProcess);
+      cout << "Press ENTER to Quit." << endl;
+      system("pause > nul");
    }
-   return rpmReturn;
-}
+
+   // Function to get a handle
+   BOOL GetProcessHandle() {
+      hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+      if(hProcess == NULL) {
+         cout << "Failed to GetProcessHandle. GetLastError = " << GetLastError() << endl;
+         system("pause");
+         return EXIT_FAILURE;
+      }
+      return 0;
+   }
+
+   // Function to read content of memory
+   BOOL ReadMemory(uintptr_t adress, int *IntRead) {
+      BOOL RPMReturn = ReadProcessMemory(hProcess, (LPCVOID)adress, IntRead, sizeof(int), NULL);
+      if(RPMReturn == FALSE) {
+         cout << "Failed to ReadProcessMemory. GetLastError = " << GetLastError() << endl;
+         cout << "\n---------------------------------------\n" << endl;
+         system("pause");
+         return EXIT_FAILURE;
+      }
+
+      PrintResult(*IntRead);
+      return 0;
+   }
+
+   BOOL WriteMemory(uintptr_t adress, int *IntWrite) {
+      BOOL WPMReturn = WriteProcessMemory(hProcess, (LPVOID)adress, IntWrite, sizeof(int), NULL);
+      if(WPMReturn == FALSE) {
+         cout << "Failed to WriteProcessMemory. GetLastError = " << GetLastError() << endl;
+         cout << "\n---------------------------------------\n" << endl;
+         system("pause");
+         return EXIT_FAILURE;
+      }
+      else {
+         cout << "The Request has been Successfully Processed." << endl;
+         cout << "\n---------------------------------------\n" << endl;
+      }
+
+      return 0;
+   }
+
+   void PrintResult(int result) {
+      cout << "\nResult = " << result << endl;
+      cout << "\n---------------------------------------\n" << endl;
+   }
+};
 
 int main() {
-   DWORD pid = 0;
+   DWORD pid;
    cout << "PID: ";
-   cin >> dec >> pid;
+   cin >> pid;
+   cout << endl;
 
-   HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-   if(hProcess == NULL) {
-      cout << "OpenProcess Failed. GetLastError: " << dec << GetLastError() << endl;
-      system("pause");
-      return EXIT_FAILURE;
-   }
-
-   uintptr_t memoryAdress = 0x0;
-   cout << "Memory Adress of Integer to Read (in Hex): 0x";
-   cin >> hex >> memoryAdress;
-   cout << "Reading 0x" << hex << uppercase << memoryAdress << "..." << endl;
-
-   char charPtrRead[128];
-   ReadProcess(hProcess, memoryAdress, charPtrRead);
-
-   cout << "intRead = " << charPtrRead << endl;
-
-   cout << "Press ENTER to Quit." << endl;
-   system("pause>nul");
-
-   return EXIT_SUCCESS;
+   ProcessAccess Process(pid);
 }
